@@ -46,13 +46,22 @@ def download_image(url, save_path):
 
 def load_existing_dataset():
     """Load previously downloaded records so interrupted runs can resume."""
-    if not os.path.isfile(METADATA_PATH):
+    temporary_path = f"{METADATA_PATH}.tmp"
+    candidates = [
+        path
+        for path in (METADATA_PATH, temporary_path)
+        if os.path.isfile(path)
+    ]
+    if not candidates:
         return []
 
-    with open(METADATA_PATH, encoding="utf-8-sig") as f:
+    source_path = max(candidates, key=os.path.getmtime)
+    with open(source_path, encoding="utf-8-sig") as f:
         dataset = json.load(f)
     if not isinstance(dataset, list):
-        raise ValueError(f"{METADATA_PATH} must contain a JSON array")
+        raise ValueError(f"{source_path} must contain a JSON array")
+    if source_path != METADATA_PATH:
+        print(f"Resuming from checkpoint {source_path}.")
     return dataset
 
 
@@ -68,7 +77,11 @@ def save_dataset(dataset):
             return
         except PermissionError:
             if attempt == 4:
-                raise
+                print(
+                    f"Warning: {METADATA_PATH} is locked; "
+                    f"checkpoint retained at {temporary_path}."
+                )
+                return
             time.sleep(2)
 
 

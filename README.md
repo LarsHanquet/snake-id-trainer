@@ -31,10 +31,32 @@ Map tiles are provided by
 [Nominatim](https://nominatim.org/).
 
 The `scrape.py` script can be used to regenerate the dataset. It requires the
-Python packages used by the script (`requests` and `pyinaturalist`).
+Python packages used by the script (`requests` and `pyinaturalist`). It writes
+to `assets/`, preserves downloaded observations, and saves metadata after each
+observation so it can resume after an interruption.
 
 ## GitHub Pages deployment
 
 The workflow in `.github/workflows/pages.yml` publishes the repository root
 to GitHub Pages whenever changes are pushed to `main`. In the repository
 settings, set **Pages > Build and deployment > Source** to **GitHub Actions**.
+
+## Rebuilding and pushing the full dataset
+
+Run the scraper from the repository root:
+
+```powershell
+py scrape.py
+```
+
+The scraper currently targets up to 5,000 observations. It may produce many
+thousands of image files. To commit them in batches of 250 and push each
+batch:
+
+```powershell
+.\push-dataset-batches.ps1 -BatchSize 250 -Push
+```
+
+Review the staged files first by omitting `-Push`. GitHub's repository and
+Pages limits still apply to the completed repository; batching changes transfer
+size and recoverability, not the final storage used.

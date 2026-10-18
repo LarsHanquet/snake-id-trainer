@@ -2,6 +2,7 @@ import json
 import os
 import re
 import time
+
 import requests
 from pyinaturalist import get_observations
 
@@ -13,8 +14,9 @@ PLACE_IDS = [6967, 6992, 7001]
 QUALITY_GRADE = "research"  # Guarantees community consensus on species
 PER_PAGE = 30
 MAX_OBSERVATIONS = 5000  # Adjust as needed for your dataset size
-OUTPUT_DIR = "snake_game_dataset"
+OUTPUT_DIR = "assets"
 IMAGES_DIR = os.path.join(OUTPUT_DIR, "images")
+METADATA_PATH = os.path.join(OUTPUT_DIR, "dataset_metadata.json")
 
 os.makedirs(IMAGES_DIR, exist_ok=True)
 
@@ -42,12 +44,42 @@ def download_image(url, save_path):
     return False
 
 
-def extract_snake_game_data():
-    dataset = []
-    page = 1
-    total_fetched = 0
+def load_existing_dataset():
+    """Load previously downloaded records so interrupted runs can resume."""
+    if not os.path.isfile(METADATA_PATH):
+        return []
 
-    print("Fetching snake observations for SE Asia (Vietnam, Laos, Thailand)...")
+    with open(METADATA_PATH, encoding="utf-8-sig") as f:
+        dataset = json.load(f)
+    if not isinstance(dataset, list):
+        raise ValueError(f"{METADATA_PATH} must contain a JSON array")
+    return dataset
+
+
+def save_dataset(dataset):
+    """Write metadata atomically so an interrupted run keeps valid JSON."""
+    temporary_path = f"{METADATA_PATH}.tmp"
+    with open(temporary_path, "w", encoding="utf-8", newline="\n") as f:
+        json.dump(dataset, f, indent=2, ensure_ascii=False)
+        f.write("\n")
+    os.replace(temporary_path, METADATA_PATH)
+
+
+def extract_snake_game_data():
+    dataset = load_existing_dataset()
+    downloaded_observation_ids = {
+        str(record["observation_id"])
+        for record in dataset
+        if record.get("observation_id") is not None
+    }
+    page = 1
+    total_fetched = len(downloaded_observation_ids)
+
+    print(
+        "Fetching snake observations for SE Asia "
+        "(Vietnam, Laos, Thailand)..."
+    )
+    print(f"Resuming with {total_fetched} existing observations.")
 
     while total_fetched < MAX_OBSERVATIONS:
         # Query API filtering by snake Taxon ID and target Place IDs
@@ -76,6 +108,9 @@ def extract_snake_game_data():
                 continue  # Ensure observation is identified to species level
 
             obs_id = obs["id"]
+            if str(obs_id) in downloaded_observation_ids:
+                continue
+
             species_id = taxon["id"]
             scientific_name = taxon.get("name")
             common_name = taxon.get("preferred_common_name", scientific_name)
@@ -111,28 +146,25 @@ def extract_snake_game_data():
                     )
 
             if downloaded_photos:
-                dataset.append(
-                    {
-                        "observation_id": obs_id,
-                        "species_id": species_id,
-                        "scientific_name": scientific_name,
-                        "common_name": common_name,
-                        "location_name": place_guess,
-                        "images": downloaded_photos,
-                    }
-                )
+                record = {
+                    "observation_id": obs_id,
+                    "species_id": species_id,
+                    "scientific_name": scientific_name,
+                    "common_name": common_name,
+                    "location_name": place_guess,
+                    "images": downloaded_photos,
+                }
+                dataset.append(record)
+                downloaded_observation_ids.add(str(obs_id))
                 total_fetched += 1
+                save_dataset(dataset)
                 print(
-                    f"[{total_fetched}/{MAX_OBSERVATIONS}] Saved image: {filename}"
+                    f"[{total_fetched}/{MAX_OBSERVATIONS}] "
+                    f"Saved observation {obs_id} ({len(downloaded_photos)} images)"
                 )
 
         page += 1
         time.sleep(1)  # Respect API rate limits (1 req/sec)
-
-    # Export dataset index JSON
-    meta_path = os.path.join(OUTPUT_DIR, "dataset_metadata.json")
-    with open(meta_path, "w", encoding="utf-8") as f:
-        json.dump(dataset, f, indent=2, ensure_ascii=False)
 
     print(f"\nExtraction complete! Dataset saved in '{OUTPUT_DIR}'")
 

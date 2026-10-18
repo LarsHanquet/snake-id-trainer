@@ -62,7 +62,14 @@ def save_dataset(dataset):
     with open(temporary_path, "w", encoding="utf-8", newline="\n") as f:
         json.dump(dataset, f, indent=2, ensure_ascii=False)
         f.write("\n")
-    os.replace(temporary_path, METADATA_PATH)
+    for attempt in range(5):
+        try:
+            os.replace(temporary_path, METADATA_PATH)
+            return
+        except PermissionError:
+            if attempt == 4:
+                raise
+            time.sleep(2)
 
 
 def extract_snake_game_data():

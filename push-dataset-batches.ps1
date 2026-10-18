@@ -14,7 +14,7 @@ if (-not (Test-Path -LiteralPath ".git")) {
 }
 
 git status --short
-$files = @(git status --short --untracked-files=all -- "assets/images")
+$files = @(git ls-files --others --exclude-standard -- "assets/images")
 if ($files.Count -eq 0) {
     Write-Output "No uncommitted image files found."
     exit 0
@@ -22,9 +22,7 @@ if ($files.Count -eq 0) {
 
 for ($start = 0; $start -lt $files.Count; $start += $BatchSize) {
     $end = [Math]::Min($start + $BatchSize - 1, $files.Count - 1)
-    $batch = $files[$start..$end] | ForEach-Object {
-        $_.Substring(3)
-    }
+    $batch = $files[$start..$end]
 
     git add -- $batch
     git commit -m "Add dataset image batch $([int]($start / $BatchSize) + 1)"

@@ -23,8 +23,15 @@ if ($files.Count -eq 0) {
 for ($start = 0; $start -lt $files.Count; $start += $BatchSize) {
     $end = [Math]::Min($start + $BatchSize - 1, $files.Count - 1)
     $batch = $files[$start..$end]
+    $pathspecFile = Join-Path $env:TEMP "snake-id-pathspec-$PID.txt"
+    [System.IO.File]::WriteAllLines(
+        $pathspecFile,
+        $batch,
+        [System.Text.UTF8Encoding]::new($false)
+    )
 
-    git add -- $batch
+    git add --pathspec-from-file=$pathspecFile
+    Remove-Item -LiteralPath $pathspecFile -Force
     git commit -m "Add dataset image batch $([int]($start / $BatchSize) + 1)"
 
     if ($Push) {

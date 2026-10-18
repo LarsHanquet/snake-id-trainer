@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Snake ID Trainer</title>
+  <link rel="icon" href="data:,">
+  
+  <!-- Leaflet CSS & JS for Maps -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <style>
+    :root {
+      --forest-950: #0b1714;
+      --forest-900: #10231d;
+      --forest-800: #17382d;
+      --forest-700: #205542;
+      --sage-400: #83c29f;
+      --sage-300: #a9d7b9;
+      --sand-100: #f3f1e8;
+      --sand-300: #cbd5c4;
+      --line: rgba(169, 215, 185, 0.2);
+      --shadow: 0 24px 70px rgba(0, 0, 0, 0.32);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      min-height: 100vh;
+      margin: 0;
+      padding: clamp(18px, 4vw, 56px) 16px;
+      color: var(--sand-100);
+      background:
+        radial-gradient(circle at 12% 0%, rgba(51, 118, 87, 0.28), transparent 34rem),
+        var(--forest-950);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      text-align: center;
+    }
+    .container {
+      width: min(1080px, 100%);
+      margin: 0 auto;
+      padding: clamp(20px, 4vw, 42px);
+      background: linear-gradient(145deg, rgba(23, 56, 45, 0.96), rgba(16, 35, 29, 0.98));
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+    }
+    .game-header { margin-bottom: clamp(22px, 4vw, 36px); }
+    .eyebrow {
+      margin: 0 0 8px;
+      color: var(--sage-400);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+    }
+    h2 { margin: 0; font-size: clamp(28px, 5vw, 44px); letter-spacing: -0.04em; }
+    .game-grid { display: grid; grid-template-columns: minmax(0, 1.08fr) minmax(280px, 0.92fr); gap: clamp(18px, 3vw, 32px); text-align: left; }
+    .visual-panel, .controls-panel { min-width: 0; }
+    .visual-panel { display: grid; gap: 14px; }
+    #snake-img {
+      display: block;
+      width: 100%;
+      height: clamp(260px, 42vw, 480px);
+      object-fit: contain;
+      background: var(--forest-950);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      cursor: zoom-in;
+    }
+    .image-lightbox {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: clamp(16px, 4vw, 48px);
+      background: rgba(5, 13, 11, 0.9);
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 180ms ease, visibility 180ms ease;
+    }
+    .image-lightbox.is-open { opacity: 1; visibility: visible; }
+    .lightbox-image {
+      display: block;
+      max-width: min(1200px, 96vw);
+      max-height: 90vh;
+      object-fit: contain;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.5);
+      cursor: grab;
+      user-select: none;
+      touch-action: none;
+      transform: translate(0, 0) scale(0.96);
+      transition: transform 180ms ease;
+    }
+    .image-lightbox.is-open .lightbox-image { transform: translate(0, 0) scale(1); }
+    .lightbox-image.is-dragging { cursor: grabbing; transition: none; }
+    .lightbox-tools {
+      position: absolute;
+      bottom: 18px;
+      left: 50%;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transform: translateX(-50%);
+    }
+    .lightbox-tool {
+      width: 42px;
+      min-height: 42px;
+      margin: 0;
+      padding: 0 0 2px;
+      color: var(--sand-100);
+      background: rgba(23, 56, 45, 0.9);
+      border: 1px solid var(--line);
+      border-radius: 50%;
+      font-size: 22px;
+      line-height: 1;
+    }
+    .lightbox-tool:hover { background: var(--forest-700); }
+    .lightbox-zoom-level {
+      min-width: 58px;
+      margin: 0;
+      color: var(--sand-300);
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .lightbox-close {
+      position: absolute;
+      top: 18px;
+      right: 18px;
+      width: 44px;
+      min-height: 44px;
+      margin: 0;
+      padding: 0 0 3px;
+      color: var(--sand-100);
+      background: rgba(23, 56, 45, 0.9);
+      border: 1px solid var(--line);
+      border-radius: 50%;
+      font-size: 28px;
+      line-height: 1;
+    }
+    .lightbox-close:hover { background: var(--forest-700); }
+    .image-carousel { position: relative; min-width: 0; }
+    .carousel-button {
+      position: absolute;
+      top: 50%;
+      z-index: 1;
+      width: 30px;
+      min-height: 30px;
+      margin: 0;
+      padding: 0 0 2px;
+      color: var(--sand-100);
+      background: rgba(11, 23, 20, 0.78);
+      border: 1px solid var(--line);
+      border-radius: 50%;
+      display: flex;
+      align-items: start;
+      justify-content: center;
+      font-size: 24px;
+      line-height: 1;
+      transform: translateY(-50%);
+    }
+    .carousel-button:hover { background: var(--forest-700); transform: translateY(-50%) scale(1.05); }
+    .carousel-button:disabled { display: none; }
+    .carousel-prev { left: 12px; }
+    .carousel-next { right: 12px; }
+    .carousel-status {
+      position: absolute;
+      right: 12px;
+      bottom: 12px;
+      margin: 0;
+      padding: 5px 9px;
+      color: var(--sand-100);
+      background: rgba(11, 23, 20, 0.78);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .map-wrap { padding: 10px; background: rgba(11, 23, 20, 0.55); border: 1px solid var(--line); border-radius: 16px; }
+    #map { height: clamp(160px, 22vw, 220px); width: 100%; border-radius: 10px; }
+    #location-text { margin: 10px 2px 0; color: var(--sand-300) !important; font-size: 13px; line-height: 1.45; }
+    .controls-panel { display: flex; flex-direction: column; justify-content: center; padding: clamp(4px, 2vw, 18px); }
+    .prompt { margin: 0 0 14px; color: var(--sand-300); font-size: 14px; }
+    input, button { width: 100%; min-height: 50px; padding: 13px 16px; border-radius: 10px; font: inherit; font-size: 15px; }
+    input { color: var(--sand-100); background: rgba(11, 23, 20, 0.64); border: 1px solid rgba(169, 215, 185, 0.32); outline: none; }
+    input:focus { border-color: var(--sage-400); box-shadow: 0 0 0 3px rgba(131, 194, 159, 0.18); }
+    button { margin-top: 10px; color: var(--forest-950); background: var(--sage-400); border: 0; cursor: pointer; font-weight: 800; transition: transform 150ms ease, background 150ms ease; }
+    button:hover { background: var(--sage-300); transform: translateY(-1px); }
+    .btn-help { color: var(--sand-100); background: var(--forest-700); border: 1px solid var(--line); }
+    .btn-help:hover { background: var(--forest-800); }
+    .btn-option { color: var(--sand-100); background: rgba(32, 85, 66, 0.72); border: 1px solid var(--line); text-align: left; }
+    .feedback { min-height: 27px; margin: 18px 0 4px; font-size: 16px; font-weight: 800; line-height: 1.4; }
+    .correct { color: var(--sage-300); }
+    .incorrect { color: #f2a39a; }
+    .game-grid.round-enter { animation: round-enter 500ms cubic-bezier(0.22, 1, 0.36, 1); }
+    .controls-panel.is-submitting { animation: submit-pop 260ms ease-out; }
+    .feedback.feedback-correct { animation: feedback-correct 450ms ease-out; }
+    .feedback.feedback-incorrect { animation: feedback-incorrect 400ms ease-out; }
+    button:disabled { cursor: wait; opacity: 0.72; transform: none; }
+
+    @keyframes round-enter {
+      from { opacity: 0; transform: translateY(14px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes submit-pop {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.015); }
+      100% { transform: scale(1); }
+    }
+    @keyframes feedback-correct {
+      0% { opacity: 0; transform: translateY(6px) scale(0.96); }
+      65% { transform: translateY(-2px) scale(1.03); }
+      100% { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    @keyframes feedback-incorrect {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-7px); }
+      75% { transform: translateX(7px); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+    }
+    datalist { display: none; }
+
+    @media (max-width: 720px) {
+      body { padding: 12px; }
+      .container { border-radius: 18px; padding: 20px 16px; }
+      .game-grid { display: block; }
+      .controls-panel { padding: 22px 0 0; }
+      #snake-img { height: min(72vw, 360px); }
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <header class="game-header">
+    <p class="eyebrow">Field guide challenge</p>
+    <h2 id="obs-title">Snake ID Game</h2>
+  </header>
+
+  <div class="game-grid">
+    <section class="visual-panel" aria-label="Snake observation">
+      <div class="image-carousel" aria-label="Observation photos">
+        <img id="snake-img" src="" alt="Snake Image" tabindex="0" role="button" aria-label="Enlarge observation photo" />
+        <button class="carousel-button carousel-prev" id="previous-image" type="button" aria-label="Previous observation photo">&#8249;</button>
+        <button class="carousel-button carousel-next" id="next-image" type="button" aria-label="Next observation photo">&#8250;</button>
+        <p class="carousel-status" id="image-status" aria-live="polite"></p>
+      </div>
+      <div class="map-wrap">
+        <div id="map"></div>
+        <p id="location-text"></p>
+      </div>
+    </section>
+
+    <section class="controls-panel" aria-label="Identify the snake">
+      <div id="feedback" class="feedback" aria-live="polite"></div>
+      <div id="text-input-view">
+        <input type="text" id="species-input" list="species-list" placeholder="Species name">
+        <datalist id="species-list"></datalist>
+        <button onclick="submitAnswer()">Submit guess</button>
+        <button class="btn-help" onclick="enableMultipleChoice()">Show 4 options</button>
+      </div>
+      <div id="multiple-choice-view" style="display: none;"></div>
+    </section>
+  </div>
+</div>
+
+<div class="image-lightbox" id="image-lightbox" role="dialog" aria-modal="true" aria-label="Expanded observation photo" aria-hidden="true">
+  <button class="lightbox-close" id="lightbox-close" type="button" aria-label="Close expanded photo">&times;</button>
+  <img class="lightbox-image" id="lightbox-image" src="" alt="" />
+  <div class="lightbox-tools" aria-label="Image zoom controls">
+    <button class="lightbox-tool" id="zoom-out" type="button" aria-label="Zoom out">−</button>
+    <p class="lightbox-zoom-level" id="zoom-level">100%</p>
+    <button class="lightbox-tool" id="zoom-in" type="button" aria-label="Zoom in">+</button>
+    <button class="lightbox-tool" id="zoom-reset" type="button" aria-label="Reset zoom">↺</button>
+  </div>
+</div>
+
+<script>
+  let dataset = [];
+  let allSpecies = [];
+  let currentIndex = 0;
+  let map, marker, answerLocked = false, currentImageIndex = 0;
+  let zoomLevel = 1, imageOffsetX = 0, imageOffsetY = 0;
+  let dragStartX = 0, dragStartY = 0, dragOriginX = 0, dragOriginY = 0;
+  let excludedSpeciesForRound = new Set();
+
+  function shuffle(items) {
+    const shuffled = [...items];
+    for (let index = shuffled.length - 1; index > 0; index -= 1) {
+      const randomIndex = Math.floor(Math.random() * (index + 1));
+      [shuffled[index], shuffled[randomIndex]] = [shuffled[randomIndex], shuffled[index]];
+    }
+    return shuffled;
+  }
+
+  // Initialize Leaflet Map
+  function initMap() {
+    map = L.map('map').setView([13.7563, 100.5018], 5);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap'
+    }).addTo(map);
+  }
+
+  // Fetch Dataset JSON
+  fetch('assets/dataset_metadata.json')
+    .then(response => {
+      if (!response.ok) {
+        throw new Error(`Dataset request failed (${response.status} ${response.statusText})`);
+      }
+      return response.json();
+    })
+    .then(data => {
+      dataset = data;
+      if (!Array.isArray(dataset) || dataset.length === 0) {
+        throw new Error('The dataset is empty or has an invalid format.');
+      }
+      dataset = shuffle(dataset);
+
+      // Extract unique scientific names and common names for autocomplete
+      allSpecies = [...new Set(dataset.map(item => `${item.scientific_name} (${item.common_name})`))];
+      
+      initMap();
+      loadRound();
+    })
+    .catch(error => {
+      console.error('Unable to load the snake dataset:', error);
+      document.getElementById('feedback').className = 'feedback incorrect';
+      document.getElementById('feedback').innerText =
+        'Unable to load the snake dataset. Check that the app is being served from its project folder.';
+    });
+
+  function geocodeLocation(locationName) {
+    // Convert location name (e.g. "Chiang Mai, TH") to coordinates using Nominatim
+    fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(locationName)}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.length > 0) {
+          let lat = parseFloat(data[0].lat);
+          let lon = parseFloat(data[0].lon);
+          map.setView([lat, lon], 8);
+          if (marker) map.removeLayer(marker);
+          marker = L.marker([lat, lon]).addTo(map);
+        }
+      });
+  }
+
+  function loadRound() {
+    const current = dataset[currentIndex];
+    answerLocked = false;
+    excludedSpeciesForRound = new Set();
+    const gameGrid = document.querySelector('.game-grid');
+    gameGrid.classList.remove('round-enter');
+    void gameGrid.offsetWidth;
+    gameGrid.classList.add('round-enter');
+    document.getElementById('obs-title').innerText = `Observation #${current.observation_id}`;
+    
+    currentImageIndex = 0;
+    updateImageCarousel();
+    
+    // Set Location text and update Map
+    document.getElementById('location-text').innerText = `Found in: ${current.location_name}`;
+    geocodeLocation(current.location_name);
+
+    // Reset controls
+    const feedback = document.getElementById('feedback');
+    feedback.className = 'feedback';
+    feedback.innerText = '';
+    document.getElementById('species-input').value = '';
+    renderSpeciesOptions();
+    document.getElementById('text-input-view').style.display = 'block';
+    document.getElementById('multiple-choice-view').style.display = 'none';
+    document.querySelectorAll('#text-input-view button').forEach(button => {
+      button.disabled = false;
+    });
+  }
+
+  function renderSpeciesOptions() {
+    const datalist = document.getElementById('species-list');
+    datalist.replaceChildren();
+    allSpecies
+      .filter(species => !excludedSpeciesForRound.has(species))
+      .forEach(species => {
+        const option = document.createElement('option');
+        option.value = species;
+        datalist.appendChild(option);
+      });
+  }
+
+  function excludeSpeciesGuess(guess) {
+    const normalizedGuess = guess.trim().toLowerCase();
+    allSpecies.forEach(species => {
+      const normalizedSpecies = species.toLowerCase();
+      const openingParenthesis = normalizedSpecies.indexOf(' (');
+      const scientificName = openingParenthesis === -1
+        ? normalizedSpecies
+        : normalizedSpecies.slice(0, openingParenthesis);
+      const commonName = openingParenthesis === -1
+        ? ''
+        : normalizedSpecies.slice(openingParenthesis + 2, -1);
+
+      if (normalizedSpecies === normalizedGuess ||
+          scientificName === normalizedGuess ||
+          commonName === normalizedGuess) {
+        excludedSpeciesForRound.add(species);
+      }
+    });
+    renderSpeciesOptions();
+  }
+
+  function updateImageCarousel() {
+    const current = dataset[currentIndex];
+    const image = current.images[currentImageIndex];
+    const imageElement = document.getElementById('snake-img');
+    const previousButton = document.getElementById('previous-image');
+    const nextButton = document.getElementById('next-image');
+
+    imageElement.src = `assets/images/${image.file_name}`;
+    imageElement.alt = `Snake observation photo ${currentImageIndex + 1} of ${current.images.length}`;
+    document.getElementById('image-status').innerText =
+      `${currentImageIndex + 1} / ${current.images.length}`;
+    previousButton.disabled = current.images.length < 2;
+    nextButton.disabled = current.images.length < 2;
+  }
+
+  function showImage(offset) {
+    const imageCount = dataset[currentIndex].images.length;
+    currentImageIndex = (currentImageIndex + offset + imageCount) % imageCount;
+    updateImageCarousel();
+  }
+
+  function openLightbox() {
+    const lightbox = document.getElementById('image-lightbox');
+    const image = document.getElementById('lightbox-image');
+    const source = document.getElementById('snake-img');
+    image.src = source.src;
+    image.alt = source.alt;
+    resetImageZoom();
+    lightbox.classList.add('is-open');
+    lightbox.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+    document.getElementById('lightbox-close').focus();
+  }
+
+  function closeLightbox() {
+    const lightbox = document.getElementById('image-lightbox');
+    lightbox.classList.remove('is-open');
+    lightbox.setAttribute('aria-hidden', 'true');
+    document.body.style.overflow = '';
+    document.getElementById('snake-img').focus();
+  }
+
+  function updateImageZoom() {
+    const image = document.getElementById('lightbox-image');
+    image.style.transform = `translate(${imageOffsetX}px, ${imageOffsetY}px) scale(${zoomLevel})`;
+    document.getElementById('zoom-level').innerText = `${Math.round(zoomLevel * 100)}%`;
+    document.getElementById('zoom-out').disabled = zoomLevel <= 1;
+  }
+
+  function setImageZoom(nextZoom) {
+    zoomLevel = Math.min(4, Math.max(1, nextZoom));
+    if (zoomLevel === 1) {
+      imageOffsetX = 0;
+      imageOffsetY = 0;
+    }
+    updateImageZoom();
+  }
+
+  function resetImageZoom() {
+    zoomLevel = 1;
+    imageOffsetX = 0;
+    imageOffsetY = 0;
+    updateImageZoom();
+  }
+
+  function submitAnswer() {
+    if (answerLocked) return;
+
+    const guess = document.getElementById('species-input').value.trim().toLowerCase();
+    const current = dataset[currentIndex];
+    const correctScientific = current.scientific_name.toLowerCase();
+    const correctCommon = current.common_name.toLowerCase();
+    const controls = document.querySelector('.controls-panel');
+    const feedback = document.getElementById('feedback');
+    controls.classList.remove('is-submitting');
+    feedback.className = 'feedback';
+    void controls.offsetWidth;
+    controls.classList.add('is-submitting');
+
+    if (guess.includes(correctScientific) || guess.includes(correctCommon)) {
+      answerLocked = true;
+      feedback.className = 'feedback correct feedback-correct';
+      feedback.innerText = `Correct! It is ${current.scientific_name} (${current.common_name})`;
+      document.querySelectorAll('#text-input-view button').forEach(button => {
+        button.disabled = true;
+      });
+      setTimeout(() => {
+        currentIndex = (currentIndex + 1) % dataset.length;
+        loadRound();
+      }, 2000);
+    } else {
+      feedback.className = 'feedback incorrect feedback-incorrect';
+      feedback.innerText = 'Not quite — try another answer.';
+      excludeSpeciesGuess(guess);
+      document.getElementById('species-input').value = '';
+    }
+
+  }
+
+  function enableMultipleChoice() {
+    document.getElementById('text-input-view').style.display = 'none';
+    const mcView = document.getElementById('multiple-choice-view');
+    mcView.style.display = 'block';
+    mcView.innerHTML = '';
+
+    const current = dataset[currentIndex];
+    const correctFullName = `${current.scientific_name} (${current.common_name})`;
+    
+    // Generate 3 decoys
+    let decoys = allSpecies.filter(s => s !== correctFullName).sort(() => 0.5 - Math.random()).slice(0, 3);
+    let options = [correctFullName, ...decoys].sort(() => 0.5 - Math.random());
+
+    options.forEach(opt => {
+      let btn = document.createElement('button');
+      btn.className = 'btn-option';
+      btn.innerText = opt;
+      btn.onclick = () => {
+        document.getElementById('species-input').value = opt;
+        submitAnswer();
+      };
+      mcView.appendChild(btn);
+    });
+  }
+
+  document.getElementById('previous-image').addEventListener('click', () => showImage(-1));
+  document.getElementById('next-image').addEventListener('click', () => showImage(1));
+  document.getElementById('snake-img').addEventListener('click', openLightbox);
+  document.getElementById('snake-img').addEventListener('keydown', event => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      openLightbox();
+    }
+  });
+  document.getElementById('lightbox-close').addEventListener('click', closeLightbox);
+  document.getElementById('zoom-in').addEventListener('click', () => setImageZoom(zoomLevel + 0.25));
+  document.getElementById('zoom-out').addEventListener('click', () => setImageZoom(zoomLevel - 0.25));
+  document.getElementById('zoom-reset').addEventListener('click', resetImageZoom);
+  document.getElementById('lightbox-image').addEventListener('wheel', event => {
+    event.preventDefault();
+    setImageZoom(zoomLevel + (event.deltaY < 0 ? 0.25 : -0.25));
+  });
+  document.getElementById('lightbox-image').addEventListener('pointerdown', event => {
+    if (zoomLevel === 1) return;
+    const image = event.currentTarget;
+    image.classList.add('is-dragging');
+    image.setPointerCapture(event.pointerId);
+    dragStartX = event.clientX;
+    dragStartY = event.clientY;
+    dragOriginX = imageOffsetX;
+    dragOriginY = imageOffsetY;
+  });
+  document.getElementById('lightbox-image').addEventListener('pointermove', event => {
+    const image = event.currentTarget;
+    if (!image.classList.contains('is-dragging')) return;
+    imageOffsetX = dragOriginX + event.clientX - dragStartX;
+    imageOffsetY = dragOriginY + event.clientY - dragStartY;
+    updateImageZoom();
+  });
+  document.getElementById('lightbox-image').addEventListener('pointerup', event => {
+    const image = event.currentTarget;
+    image.classList.remove('is-dragging');
+    image.releasePointerCapture(event.pointerId);
+  });
+  document.getElementById('image-lightbox').addEventListener('click', event => {
+    if (event.target.id === 'image-lightbox') closeLightbox();
+  });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && document.getElementById('image-lightbox').classList.contains('is-open')) {
+      closeLightbox();
+    }
+  });
+</script>
+</body>
+</html>

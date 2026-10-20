@@ -1,6 +1,5 @@
 import json
 import os
-import re
 import time
 
 import requests
@@ -19,15 +18,6 @@ IMAGES_DIR = os.path.join(OUTPUT_DIR, "images")
 METADATA_PATH = os.path.join(OUTPUT_DIR, "dataset_metadata.json")
 
 os.makedirs(IMAGES_DIR, exist_ok=True)
-
-
-def sanitize_filename(name):
-    """Cleans strings to ensure valid and consistent file system names."""
-    if not name:
-        return "unknown"
-    # Remove characters that are unsafe for filenames and replace spaces with underscores
-    clean = re.sub(r"[^\w\s-]", "", str(name)).strip().replace(" ", "_")
-    return clean.lower()
 
 
 def download_image(url, save_path):
@@ -138,10 +128,6 @@ def extract_snake_game_data():
             # Get place info where observation occurred
             place_guess = obs.get("place_guess", "SE Asia")
 
-            # Prepare sanitized elements for filename formatting
-            clean_loc = sanitize_filename(place_guess)
-            clean_spec = sanitize_filename(scientific_name)
-
             # Collect and download images
             photos = obs.get("photos", [])
             downloaded_photos = []
@@ -152,8 +138,8 @@ def extract_snake_game_data():
                 if not photo_url:
                     continue
 
-                # Updated filename format: location_species_obsID_pIndex.jpg
-                filename = f"{clean_loc}_{clean_spec}_{obs_id}_p{idx}.jpg"
+                # Keep paths short enough for GitHub Actions on all platforms.
+                filename = f"img_{obs_id}_{idx}.jpg"
                 local_path = os.path.join(IMAGES_DIR, filename)
 
                 if download_image(photo_url, local_path):

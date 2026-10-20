@@ -307,8 +307,12 @@
     }).addTo(map);
   }
 
-  // Fetch Dataset JSON
-  fetch('assets/dataset_metadata.json')
+  // Change this value whenever the bundled dataset filenames change.
+  const DATASET_VERSION = 'short-filenames-2026-10-20';
+
+  // Fetch Dataset JSON. The version prevents browsers from reusing metadata
+  // from before a dataset migration.
+  fetch(`assets/dataset_metadata.json?v=${DATASET_VERSION}`)
     .then(response => {
       if (!response.ok) {
         throw new Error(`Dataset request failed (${response.status} ${response.statusText})`);

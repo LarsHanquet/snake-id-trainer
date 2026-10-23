@@ -354,7 +354,8 @@
       dataset = shuffle(dataset);
 
       // Extract unique scientific names and common names for autocomplete
-      allSpecies = [...new Set(dataset.map(item => `${item.scientific_name} (${item.common_name})`))];
+      allSpecies = [...new Set(dataset.map(item => `${item.scientific_name} (${item.common_name})`))]
+        .sort(compareSpecies);
       
       initMap();
       loadRound();
@@ -421,6 +422,12 @@
         option.value = species;
         datalist.appendChild(option);
       });
+  }
+
+  function compareSpecies(firstSpecies, secondSpecies) {
+    return firstSpecies.localeCompare(secondSpecies, undefined, {
+      sensitivity: 'base'
+    });
   }
 
   function excludeSpeciesGuess(guess) {
@@ -553,8 +560,21 @@
     const correctFullName = `${current.scientific_name} (${current.common_name})`;
     
     // Generate 3 decoys
-    let decoys = allSpecies.filter(s => s !== correctFullName).sort(() => 0.5 - Math.random()).slice(0, 3);
-    let options = [correctFullName, ...decoys].sort(() => 0.5 - Math.random());
+    const decoyCandidates = allSpecies.filter(species => species !== correctFullName);
+    let decoys = shuffle(decoyCandidates).slice(0, 3);
+
+    // Keep the correct answer from being the first option when a preceding
+    // species is available, without sacrificing alphabetical ordering.
+    if (decoys.length === 3 &&
+        compareSpecies(correctFullName, [...decoys].sort(compareSpecies)[0]) < 0) {
+      const precedingSpecies = decoyCandidates
+        .filter(species => compareSpecies(species, correctFullName) < 0);
+      if (precedingSpecies.length > 0) {
+        decoys[0] = precedingSpecies[Math.floor(Math.random() * precedingSpecies.length)];
+      }
+    }
+
+    const options = [correctFullName, ...decoys].sort(compareSpecies);
 
     options.forEach(opt => {
       let btn = document.createElement('button');
